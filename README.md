@@ -188,3 +188,14 @@ This is the shape of the sellable thing: `GnatTrapEngine` sits between the
 user and any host model, stateful per session, with a full audit trail an
 enterprise buyer can inspect. The detection layer is the moat — everything
 else (tiers, personas, logging) is already product-shaped.
+
+## Commercial licensing
+
+Gnat Trap is open source under AGPL-3.0-or-later: free to use, modify, and
+share, provided you share your changes under the same terms.
+
+If you want to embed Gnat Trap in a proprietary product — or run it as a
+service without the share-alike obligation — commercial licenses are
+available. One codebase, two ways to use it.
+
+Contact: fmcfadden1161@gmail.com
