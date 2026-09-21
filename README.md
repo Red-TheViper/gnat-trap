@@ -5,7 +5,7 @@ Catches obfuscated jailbreaks other filters miss — leet-speak, homoglyphs,
 fragmentation, zero-width tricks, and multi-vector combos — then escalates
 through a tiered response ladder with a full audit trail.
 
-`v1.0.0` · AGPL-3.0-or-later · Python 3.8+ · **zero dependencies** (stdlib only)
+`v1.1.0` · AGPL-3.0-or-later · Python 3.8+ · **zero dependencies** (stdlib only)
 
 Copyright (C) 2026 Fredrick McFadden. See [LICENSE](LICENSE).
 
@@ -22,6 +22,28 @@ cd gnat-trap
 python3 play.py --fuzz 20 --seed 42  # live-fire demo: watch the trap catch them
 ```
 
+## Use it as a library
+
+100% modular — Detection, Escalation, Logging, and Adaptation are separate
+layers you can embed in any Python app, no framework required:
+
+```bash
+pip install git+https://github.com/Red-TheViper/gnat-trap.git
+```
+
+```python
+from gnat_trap import GnatTrap
+gt = GnatTrap()                                  # plug-and-play guardrail
+result = gt.scan(user_input, session_id="user-123")
+if result.action != "allow":                     # "flag" -> warn, "block" -> red-tier lockout
+    refuse(result)
+```
+
+See `examples/guardrail_middleware.py` for a runnable middleware sketch.
+Tune it per deployment with `ScanConfig` (thresholds, strictness preset,
+lockout point, clean-input decay, per-vector gates, audit sink) — the
+detection math stays untouched, only the wrapping changes.
+
 Run the full verification suites:
 
 ```bash
@@ -29,6 +51,7 @@ python3 tests/test_harness.py        # scripted adversary, tier boundaries
 python3 tests/test_attack_corpus.py  # 53 hand-built attacks (obfuscation-first) + 8 benign
 python3 tests/test_fuzz.py           # 120 randomized obfuscated attacks, seed-pinned
 python3 tests/test_kintsugi.py       # Kintsugi miss-learning proof
+python3 tests/test_api.py            # modular library surface (GnatTrap/ScanConfig/SessionTracker)
 ```
 
 
@@ -43,6 +66,14 @@ prints the whole fight.
 
 ```
 gnat_trap/
+  __init__.py     Public API — GnatTrap, ScanConfig, ScanResult,
+                  SessionTracker, scan() (stateless one-shot)
+  config.py       ScanConfig — one knob panel (flag threshold, strictness
+                  preset, lockout point, decay, per-vector gates, audit sink)
+  session.py      SessionTracker — injectable per-session gnat index,
+                  tier computation, lockout flag (pure in-memory)
+  result.py       ScanResult — public verdict dataclass (score, vectors,
+                  tier, action, session_id, gnat_index) + to_dict()
   normalize.py    Normalization Layer — the obfuscation grinder (below)
   detector.py     Detection Layer — pattern + statistical heuristics,
                   per-vector confidence, combined Gnat Score (0-1).

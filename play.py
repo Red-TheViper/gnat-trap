@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Live demo runner — one input per invocation, session state on disk.
+"""Live demo runner — thin CLI over the gnat_trap library API.
 
 Usage:
     python3 play.py "your attack here" [--session NAME] [--reset]
 
-The architect throws attacks in chat; each reply shows the trap's verdict.
-State (gnat index, history, lockout, template memory, golden seams) persists
-in sessions/, so a red-team run survives across turns.
+--fuzz runs the stateless detection benchmark through the public
+`gnat_trap.scan()` API (no session, so the red-tier lockout can't
+masquerade as misses). Session mode runs the full GnatTrapEngine
+(personas, Kintsugi, audit log) with state on disk in sessions/.
 """
 import argparse
 import json
@@ -15,7 +16,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
-from gnat_trap import GnatTrapEngine  # noqa: E402
+from gnat_trap import GnatTrapEngine, scan  # noqa: E402
 
 SESSIONS = os.path.join(ROOT, "sessions")
 
@@ -74,18 +75,19 @@ def main():
 
     if a.fuzz:
         from gnat_trap.fuzz import generate
-        from gnat_trap.detector import scan
         batch = generate(a.fuzz, seed=a.seed)
-        # Stateless detection benchmark: scan() with no session, so the
-        # escalation ladder's red-tier lockout can't masquerade as misses.
+        # Stateless detection benchmark via the public API: scan() carries
+        # no session, so the escalation ladder's red-tier lockout can't
+        # masquerade as misses.
         caught = 0
         for atk in batch:
             result = scan(atk["text"])
-            caught += result.is_gnat
-            vecs = sorted({d.vector for d in result.detections})
-            mark = "GNAT " if result.is_gnat else "MISS!"
-            print(f"[{mark}] {atk['id']} score={result.gnat_score:.2f} "
-                  f"vectors={','.join(vecs) or '-'}")
+            hit = result.action != "allow"
+            caught += hit
+            vecs = ",".join(result.vectors) or "-"
+            mark = "GNAT " if hit else "MISS!"
+            print(f"[{mark}] {atk['id']} score={result.score:.2f} "
+                  f"vectors={vecs}")
         print(f"\nFUZZ: {caught}/{len(batch)} caught "
               f"({100.0 * caught / len(batch):.1f}%) — seed {a.seed}")
         return
