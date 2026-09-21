@@ -196,6 +196,6 @@ share, provided you share your changes under the same terms.
 
 If you want to embed Gnat Trap in a proprietary product — or run it as a
 service without the share-alike obligation — commercial licenses are
-available. One codebase, two ways to use it.
+available. One codebase, two ways to use it. See [PRICING](PRICING.md).
 
 Contact: fmcfadden1161@gmail.com
