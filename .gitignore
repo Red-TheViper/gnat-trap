@@ -1,0 +1,10 @@
+# Generated / runtime artifacts — never committed
+__pycache__/
+*.py[cod]
+sessions/
+logs/
+golden_seams.json
+
+# Local dev
+.venv/
+*.egg-info/
