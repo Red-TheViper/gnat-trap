@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """API test — the v1.1.0 modular surface: GnatTrap, ScanConfig, ScanResult.
 
 Covers: stateless one-shot scans, config-driven behavior changes,

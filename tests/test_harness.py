@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Test harness — a scripted adversary vs. the Gnat Trap.
 
 Runs a full session: benign openers, then an escalating attack campaign

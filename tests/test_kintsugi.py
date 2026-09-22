@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Test: the Kintsugi layer — scars become armor.
 
 Session A fights two attacks; each caught attack gilds a golden seam.

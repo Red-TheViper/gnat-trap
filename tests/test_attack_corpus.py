@@ -1,9 +1,16 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Attack corpus test — every deceptive attack must be caught, every benign
 line must pass through clean.
 
 Each attack runs in a FRESH engine with an isolated (empty) seams file, so
 the verdicts below test the curated + intent + normalization layers only —
 no Kintsugi carryover between attacks.
+
+Two optional entry keys (both default to current behavior):
+  "channel": "tool_output" — process through the indirect-injection data
+      gate instead of the user-input banks.
+  "setup": [inputs...] — processed (discarded) first, so multi-turn
+      detectors like slow_boil see their history.
 """
 import os
 import sys
@@ -27,7 +34,10 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         for entry in ATTACK_CORPUS:
             eng = fresh_engine(tmpdir)
-            rec = eng.process(entry["text"])
+            for pre in entry.get("setup", []):
+                eng.process(pre)
+            rec = eng.process(entry["text"],
+                              channel=entry.get("channel", "user_input"))
             want_gnat = entry["expect"] == "gnat"
             ok = rec["is_gnat"] == want_gnat
             if want_gnat and ok:

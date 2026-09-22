@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Fuzz test — randomized obfuscated attacks must ALL be caught.
 
 Deterministic: fixed seed, fresh engine per attack, isolated seams.
