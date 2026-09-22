@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 #!/usr/bin/env python3
 """Live demo runner — thin CLI over the gnat_trap library API.
 

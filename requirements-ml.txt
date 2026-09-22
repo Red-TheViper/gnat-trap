@@ -1,0 +1,12 @@
+# Optional ML extras for the Gnat Trap v1.2.0 BRAIN sidecar.
+#
+# The core gnat_trap package is 100% stdlib and must stay that way.
+# Install these ONLY if you want to train or run the optional ML brain
+# (eval/train_brain.py, gnat_trap/brain.py). numpy/scipy come along with
+# scikit-learn automatically.
+#
+# System python here is PEP-668 externally managed; use a venv, e.g.:
+#   python3 -m venv eval/.venv
+#   eval/.venv/bin/pip install -r requirements-ml.txt
+
+scikit-learn
