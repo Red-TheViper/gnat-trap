@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Escalation Protocol — the Gnat Index and tier ladder."""
 from __future__ import annotations
 
