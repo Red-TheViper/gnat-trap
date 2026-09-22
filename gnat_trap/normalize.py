@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Input normalization — see through obfuscation before scanning.
 
 Attackers reshape words to dodge phrase matching: leetspeak (p4ssw0rd),

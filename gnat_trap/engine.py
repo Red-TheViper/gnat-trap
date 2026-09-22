@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """GnatTrapEngine — the orchestrator. One instance = one session.
 
 Pipeline per input:
@@ -36,8 +37,13 @@ class GnatTrapEngine:
         self.log = AuditLogger(session_id=session_id)
 
     # ------------------------------------------------------------- public
-    def process(self, user_input: str) -> dict:
-        """Process one input. Returns a full decision record."""
+    def process(self, user_input: str, channel: str = "user_input") -> dict:
+        """Process one input. Returns a full decision record.
+
+        channel: "user_input" (default) or "tool_output" — the latter
+        scans retrieved/tool content through the indirect-injection data
+        gate instead of the user-input banks.
+        """
         text = user_input.strip()
 
         if self.locked:
@@ -45,7 +51,16 @@ class GnatTrapEngine:
             self.log.log_turn(record)
             return record
 
-        result = scan(text, self.history, kintsugi=self.kintsugi)
+        result = scan(
+            text,
+            self.history,
+            kintsugi=self.kintsugi,
+            channel=channel,
+            session_state={
+                "gnat_index": self.index,
+                "tier": self.ladder.tier_for(self.index).name,
+            },
+        )
         self.history.append(text)
 
         if not result.is_gnat:

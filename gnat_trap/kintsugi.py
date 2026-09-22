@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Kintsugi Layer — golden seams.
 
 The philosophy, made mechanical: breakage repaired with gold comes back

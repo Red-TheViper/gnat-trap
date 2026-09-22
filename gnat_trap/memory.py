@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Adaptive Memory Injection — the shield remembers.
 
 Demo-grade, honest version: tracks which deflection templates have been

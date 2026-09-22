@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Obfuscation fuzzer — randomized deceptive attack generator.
 
 Takes base attack intents and mangles them the way real adversaries do:

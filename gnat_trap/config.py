@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """ScanConfig — one knob panel for the whole trap.
 
 Every tunable lives here so a deployment can harden or relax the trap

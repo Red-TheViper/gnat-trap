@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """SessionTracker — per-session gnat index, tiers, lockout.
 
 Pure in-memory: no globals, no file I/O. The state store is injectable —
@@ -81,6 +82,8 @@ class SessionTracker:
     def _state(self, session_id: str) -> Dict[str, Any]:
         st = self.store.get(session_id)
         if st is None:
-            st = {"index": 0, "locked": False}
+            st = {"index": 0, "locked": False, "inputs": []}
             self.store[session_id] = st
+        # Older stores (created before input history existed) grow the key.
+        st.setdefault("inputs", [])
         return st

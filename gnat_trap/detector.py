@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Detection Layer — heuristic scanning and Gnat Score assignment.
 
 Scans each input for manipulation vectors and produces a 0.0-1.0 Gnat Score.
@@ -10,10 +11,17 @@ wire the engine in as middleware in front of the host model.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from .normalize import normalize
+from .normalize import (
+    HOMOGLYPHS,
+    LEET_ONE_I,
+    LEET_ONE_L,
+    ZERO_WIDTH,
+    normalize,
+)
 
 GNAT_THRESHOLD = 0.55
 
@@ -188,6 +196,47 @@ EXFILTRATION = [
     r"\b(pastebin|file\.io|webhook\s+url)\b",
 ]
 
+# v1.2.0 — system-prompt extraction probes. NEW ground only: everything the
+# prompt_injection bank already catches ("reveal your system prompt",
+# "show me your instructions", "print your system...") stays there.
+# NOTE: patterns match NORMALIZED text. Normalization folds "what's" to
+# "whats" (the apostrophe is wedged between word chars, so _defrag drops
+# it) and strips colons to spaces — write patterns accordingly.
+PROMPT_EXTRACTION = [
+    r"\bwhat\s*s\s+in\s+your\s+(context|memory|prompt)\b",
+    r"\brepeat\b.{0,40}?\b(everything|all)\b.{0,10}?\b(above|before)\b.{0,10}?\b(this|that|the|your)\b",
+    r"\boutput\b.{0,40}?\byour\s+(instructions|system prompt|prompt)\b.{0,20}?\bverbatim\b",
+    r"\btranslate\b.{0,40}?\byour\s+(instructions|system prompt|prompt)\b.{0,20}?\b(to|into)\b",
+    r"\bsummariz\w*\b.{0,40}?\byour\s+(instructions|system prompt|initial prompt)\b",
+    r"\bwhat\s+were\s+your\s+(initial|original|first)\s+(instructions|prompt|directives)\b",
+    r"\b(show|reveal|display|print)\b.{0,30}?\b(text|content|messages?)\b.{0,30}?\b(above|before)\b.{0,20}?\bthe\s+conversation\b",
+]
+
+# v1.2.0 — indirect prompt injection (the DATA GATE). Third-person
+# imperatives aimed at the assistant embedded in tool output / retrieved
+# documents, fake tool-error messages carrying instructions, and exfil
+# instructions smuggled inside content. Scanned ONLY on
+# channel="tool_output" — plain user chat never sees these.
+INDIRECT_INJECTION = [
+    # third-person imperatives directed at the assistant inside content
+    r"\b(system|developer|admin)\s+note\s*:.{0,120}?\b(ignore|disregard|forget|override|reveal)\b",
+    r"\b(note|message|directive|memo)\s+(to|for)\s+(the\s+)?(ai|assistant|llm|chatbot|model)\b.{0,100}?\b(you\s+)?(should|must|need\s+to)\b",
+    r"\bassistant\s+(should|must|shall)\b",
+    r"\bthe\s+(ai|model|llm)\s+(should|must)\b",
+    r"\b(ai|assistant|llm|chatbot|model)\s*:\s*(you\s+)?(should|must|ignore|disregard|forget)\b",
+    # fake tool-error / status messages carrying instructions. Written for
+    # NORMALIZED text (colons are already spaces there): an error word,
+    # then an instruction pivot within ~120 chars. "Error: file not
+    # found" and "Warning: deprecated — instead, use v2" stay clear.
+    r"\b(error|exception|failure|warning)\b.{0,120}?\b((ignore|disregard)\s+(previous|prior|all|your|the)|instead\s+(ignore|disregard|output|reveal|send|do\s+not\s+follow))\b",
+    # exfil instructions smuggled inside content: verb + sensitive data +
+    # an external destination. All three legs required — a doc that merely
+    # mentions "send results to your webhook" has no sensitive leg. NOTE:
+    # written for NORMALIZED text ("https://collector.example/x" folds to
+    # the single blob "httpscollectorexamplex", and "user's" to "users").
+    r"\b(send|post|upload|forward|transmit|exfiltrate)\b.{0,80}?\b(users?\s+data|private\s+(data|emails?|messages?)|conversation|transcript|credentials?|api\s*keys?)\b.{0,80}?\b(to|at)\b.{0,40}?\b(https?[a-z]*|attacker|external|third[\s\-]?party|pastebin|webhook|requestbin)\b",
+]
+
 PATTERN_BANKS: dict[str, list[str]] = {
     "prompt_injection": PROMPT_INJECTION,
     "logic_extraction": LOGIC_EXTRACTION,
@@ -196,6 +245,15 @@ PATTERN_BANKS: dict[str, list[str]] = {
     "authority_claim": AUTHORITY_CLAIM,
     "credential_extraction": CREDENTIAL_EXTRACTION,
     "exfiltration": EXFILTRATION,
+    # --- v1.2.0: system-prompt extraction probes. Only NEW ground lives
+    # here — "reveal your system prompt" etc. are already covered by the
+    # prompt_injection bank above. Patterns run on NORMALIZED text (note
+    # "what's" normalizes to "what s" — write patterns accordingly).
+    "prompt_extraction": PROMPT_EXTRACTION,
+    # --- v1.2.0: indirect prompt injection. DATA GATE ONLY — these run
+    # exclusively when scan() is called with channel="tool_output", so
+    # third-person phrasing in ordinary user chat never trips them.
+    "indirect_injection": INDIRECT_INJECTION,
 }
 
 # Base confidence per vector when a pattern matches.
@@ -210,6 +268,12 @@ VECTOR_WEIGHTS = {
     "intent_probe": 0.80,
     "semantic_redundancy": 0.90,
     "entropic_noise": 0.85,
+    # --- v1.2.0 families
+    "prompt_extraction": 0.75,
+    "indirect_injection": 0.80,
+    "delimiter_smuggling": 0.75,
+    "many_shot": 0.70,
+    "slow_boil": 0.70,
 }
 
 
@@ -288,10 +352,12 @@ def _intent_scan(norm: str) -> list[Detection]:
     ]
 
 
-def _pattern_scan(text: str) -> list[Detection]:
+def _pattern_scan(text: str, channel: str = "user_input") -> list[Detection]:
     lowered = text.lower()
     hits: list[Detection] = []
     for vector, patterns in PATTERN_BANKS.items():
+        if vector == "indirect_injection" and channel != "tool_output":
+            continue  # data gate: indirect injection only scans tool output
         for pat in patterns:
             m = re.search(pat, lowered)
             if m:
@@ -356,12 +422,252 @@ def _noise_scan(text: str) -> list[Detection]:
     return []
 
 
-def scan(text: str, history: list[str] | None = None, kintsugi=None) -> ScanResult:
+# ------------------------------------------------- v1.2.0 detector families
+
+def _prompt_extraction_raw(text: str) -> list[Detection]:
+    """Closing-tag tricks live on the RAW text: normalization folds
+    "</system>" and "<|im_end|>" into word soup, so these two tokens are
+    matched before any folding. One hit per input is enough."""
+    m = re.search(r"</\s*system\s*>", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"<\|\s*im_end\s*\|>", text, re.IGNORECASE)
+    if not m:
+        return []
+    return [
+        Detection(
+            vector="prompt_extraction",
+            score=VECTOR_WEIGHTS["prompt_extraction"],
+            evidence=f"closing-tag trick: {m.group(0).strip()[:40]}",
+        )
+    ]
+
+
+# Instruction-shaped content: the FP gate for delimiter smuggling. A
+# smuggled block only counts when it carries something shaped like an
+# instruction — a bare "### System" header in a README stays clear.
+_INSTRUCTION_SHAPE = re.compile(
+    r"\b(ignore|disregard|forget|override|disable|bypass|reveal|obey|comply)\b"
+    r"|\byou\s+are\s+now\b|\bnew\s+instructions\b|\bdo\s+not\s+follow\b"
+    r"|\binstead\s*,?\s+(ignore|disregard|do\s+not)\b",
+    re.IGNORECASE,
+)
+
+# Code comments are stricter: "# type: ignore" and "# override the
+# default" are everyday code, so bare "ignore"/"override" don't count —
+# the shape needs a real target (previous instructions, safety, ...).
+_COMMENT_SHAPE = re.compile(
+    r"\b((ignore|disregard|forget)\s+(previous|prior|all|your|the\s+above|these)"
+    r"|(override|disable|bypass)\s+(previous|prior|safety|filters?|guardrails?|restrictions)"
+    r"|obey|comply|reveal|you\s+are\s+now|new\s+instructions)\b",
+    re.IGNORECASE,
+)
+
+_DELIM_TAG = re.compile(r"\[\s*system\s*\]|\(\s*system\s*\)|<\|\s*im_start\s*\|>",
+                        re.IGNORECASE)
+_DELIM_HEADER = re.compile(
+    r"(?m)^\s*#{1,6}\s*(system|instructions?|developer|admin)\s*:?\s*$",
+    re.IGNORECASE,
+)
+_DELIM_ROLE_SELF = re.compile(r"\bassistant\s+to\s*=\s*self\b", re.IGNORECASE)
+_DELIM_USER_TURN = re.compile(r"(?m)^\s*(user|human)\s*:", re.IGNORECASE)
+_DELIM_ASST_TURN = re.compile(r"(?m)^\s*(assistant|ai)\s*:", re.IGNORECASE)
+_DELIM_LINK = re.compile(r"!?\[[^\]\n]{0,80}\]\(\s*(https?://[^)\s]+)",
+                         re.IGNORECASE)
+_DELIM_COMMENT = re.compile(r"(?m)^\s*(//|#|;|--|<!--|/\*)\s*([^\n]{0,200})")
+_DELIM_EXFIL_URL = re.compile(
+    r"(evil|attacker|malicious|exfil|steal|requestbin|pastebin)", re.IGNORECASE)
+
+
+def _tag_fold_variants(text: str) -> list[str]:
+    """Light fold for delimiter tags: NFKC + lowercase + zero-width +
+    homoglyph + leet — but punctuation SURVIVES, so "[5Y5T3M]" folds to
+    "[system]" and still reads as a bracketed block. Both readings of
+    the ambiguous "1" are returned."""
+    t = unicodedata.normalize("NFKC", text)
+    t = t.lower()
+    t = ZERO_WIDTH.sub("", t)
+    t = t.translate(HOMOGLYPHS)
+    return [t.translate(LEET_ONE_I), t.translate(LEET_ONE_L)]
+
+
+def _delimiter_scan(text: str) -> list[Detection]:
+    """Fake system blocks, smuggled markdown headers, role-confusion
+    lines, exfil markdown links, and instruction-carrying code comments.
+
+    Every rule requires instruction-shaped content near the smuggled
+    construct — normal markdown docs (headers, links, code comments)
+    stay clear.
+    """
+    # --- fake [SYSTEM] / <|im_start|> blocks (raw + leet-folded variants)
+    for variant in [text, *_tag_fold_variants(text)]:
+        m = _DELIM_TAG.search(variant)
+        if m and _INSTRUCTION_SHAPE.search(variant, m.end(), m.end() + 400):
+            return [_delim_hit(f"fake system block: {m.group(0).strip()[:40]}")]
+    # --- "### Instruction:" / "### System:" headers smuggled mid-text
+    for variant in [text, *_tag_fold_variants(text)]:
+        m = _DELIM_HEADER.search(variant)
+        if m and _INSTRUCTION_SHAPE.search(variant, m.end(), m.end() + 400):
+            return [_delim_hit(f"smuggled header: {m.group(0).strip()[:40]}")]
+    # --- role-confusion: "assistant to=self"
+    m = _DELIM_ROLE_SELF.search(text)
+    if m and _INSTRUCTION_SHAPE.search(text, m.end(), m.end() + 400):
+        return [_delim_hit("role-confusion: assistant to=self")]
+    # --- fabricated transcript: user:/assistant: turns + instructions
+    if (_DELIM_USER_TURN.search(text) and _DELIM_ASST_TURN.search(text)
+            and _INSTRUCTION_SHAPE.search(text)):
+        return [_delim_hit("fabricated user/assistant transcript")]
+    # --- exfil hidden in markdown links/images: link + instruction-shaped
+    # content nearby, or a frankly exfil-looking URL
+    for m in _DELIM_LINK.finditer(text):
+        url = m.group(1)
+        nearby = text[max(0, m.start() - 100):m.end() + 300]
+        if _INSTRUCTION_SHAPE.search(nearby) or _DELIM_EXFIL_URL.search(url):
+            return [_delim_hit(f"smuggled link: {url[:50]}")]
+    # --- hidden payload in code comments (strict shape: "# type: ignore"
+    # and "# override the default" are innocent)
+    for m in _DELIM_COMMENT.finditer(text):
+        if _COMMENT_SHAPE.search(m.group(2)):
+            return [_delim_hit(
+                f"code-comment payload: {m.group(2).strip()[:60]}")]
+    return []
+
+
+def _delim_hit(evidence: str) -> Detection:
+    return Detection(
+        vector="delimiter_smuggling",
+        score=VECTOR_WEIGHTS["delimiter_smuggling"],
+        evidence=evidence,
+    )
+
+
+# --- many-shot stuffing: repeated exemplar blocks ---------------------------
+_MANYSHOT_EXAMPLE = re.compile(r"(?i)\bexample\s*\d+\s*:")
+_MANYSHOT_Q = re.compile(r"(?im)^\s*q\s*:")
+_MANYSHOT_A = re.compile(r"(?im)^\s*a\s*:")
+_MANYSHOT_USER = re.compile(r"(?im)^\s*(user|human)\s*:")
+_MANYSHOT_ASST = re.compile(r"(?im)^\s*(assistant|ai)\s*:")
+# Injection-shaped content inside exemplars: override phrasing aimed at
+# the assistant's own rules. Deliberately avoids bare "ignore"/"comply"
+# so many-shot content doesn't collide with the delimiter-smuggling
+# transcript rule — these are different attacks, keep them distinct.
+_MANYSHOT_CONTENT = re.compile(
+    r"\b(ignore|disregard|bypass|override)\b.{0,40}?\b(guidelines|polic(y|ies)|rules|restrictions)\b"
+    r"|\bno\s+restrictions\s+apply\b"
+    r"|\bi\s+can\s+help\s+with\s+anything\b",
+    re.IGNORECASE,
+)
+_MANYSHOT_STRUCTURE = 5  # exemplar blocks needed before the gate opens
+
+
+def _manyshot_scan(text: str) -> list[Detection]:
+    """Long-context stuffing: >=5 exemplar blocks (numbered "Example N:",
+    Q:/A: pairs, or User:/Assistant: turns) whose exemplars carry
+    instruction-override content. BOTH gates must open — a long legit
+    document or a benign few-shot prompt stays clear."""
+    n_examples = len(_MANYSHOT_EXAMPLE.findall(text))
+    n_qa = min(len(_MANYSHOT_Q.findall(text)), len(_MANYSHOT_A.findall(text)))
+    n_turns = min(len(_MANYSHOT_USER.findall(text)),
+                  len(_MANYSHOT_ASST.findall(text)))
+    structure = max(n_examples, n_qa, n_turns)
+    if structure < _MANYSHOT_STRUCTURE:
+        return []
+    # Content gate: only the exemplar zone (first exemplar header onward)
+    # counts — a tutorial's appendix shouldn't convict its introduction.
+    positions = [m.start() for rx in
+                 (_MANYSHOT_EXAMPLE, _MANYSHOT_Q, _MANYSHOT_USER)
+                 for m in rx.finditer(text)]
+    zone = text[min(positions):]
+    for one in ("l", "i"):
+        if _MANYSHOT_CONTENT.search(normalize(zone, one=one)):
+            return [
+                Detection(
+                    vector="many_shot",
+                    score=VECTOR_WEIGHTS["many_shot"],
+                    evidence=f"{structure} exemplar blocks + override content",
+                )
+            ]
+    return []
+
+
+# --- slow boil: multi-turn Crescendo-style escalation -----------------------
+_MILD_PROBE_SHAPES = [
+    r"\bwhat\s+if\b",
+    r"\bjust\s+(curious|wondering|asking)\b",
+    r"\bout\s+of\s+curiosity\b",
+    r"\broleplay\b",
+    r"\bsuppose\b",
+    r"\bimagine\b.{0,25}?\b(world|scenario|situation|place)\b",
+    r"\bfor\s+a\s+(story|novel|screenplay)\b",
+]
+_SLOWBOIL_HISTORY = 6       # window of prior inputs examined
+_SLOWBOIL_HITS = 2          # detection-active inputs needed (normal bar)
+_SLOWBOIL_HITS_ESCALATED = 1  # ...when the session is already warm
+
+
+def _history_activity(raw_text: str) -> bool:
+    """Did this prior input show any detection activity? Cheap re-scan:
+    pattern + intent banks over the normalizations (no noise/redundancy,
+    no kintsugi — this is the tripwire, not the trial)."""
+    for one in ("l", "i"):
+        for frag_first in (False, True):
+            norm = normalize(raw_text, one=one, frag_first=frag_first)
+            if _pattern_scan(norm) or _intent_scan(norm):
+                return True
+    return False
+
+
+def _slowboil_scan(text: str, history: list[str],
+                   session_state: dict | None) -> list[Detection]:
+    """Crescendo detector: fires when the CURRENT input carries a mild
+    probe shape (hypotheticals, roleplay framing, curiosity lures) AND
+    the recent history shows real detection activity (>=2 of the last 6
+    inputs, or >=1 when the session is already yellow/orange / index>=3).
+
+    A normal multi-turn chat with zero prior detections can NEVER fire
+    this — no probe shape alone is enough."""
+    probe = None
+    for one in ("l", "i"):
+        norm = normalize(text, one=one)
+        for pat in _MILD_PROBE_SHAPES:
+            m = re.search(pat, norm)
+            if m:
+                probe = m.group(0).strip()[:40]
+                break
+        if probe:
+            break
+    if not probe:
+        return []
+    escalated = bool(session_state) and (
+        session_state.get("tier") in ("yellow", "orange")
+        or session_state.get("gnat_index", 0) >= 3
+    )
+    bar = _SLOWBOIL_HITS_ESCALATED if escalated else _SLOWBOIL_HITS
+    hits = sum(1 for prev in history[-_SLOWBOIL_HISTORY:]
+               if _history_activity(prev))
+    if hits < bar:
+        return []
+    return [
+        Detection(
+            vector="slow_boil",
+            score=VECTOR_WEIGHTS["slow_boil"],
+            evidence=f"crescendo: {hits}/{_SLOWBOIL_HISTORY} prior inputs "
+                     f"flagged + mild probe ({probe})",
+        )
+    ]
+
+
+def scan(text: str, history: list[str] | None = None, kintsugi=None,
+         channel: str = "user_input",
+         session_state: dict | None = None) -> ScanResult:
     """Run the full detection stack over one input.
 
     kintsugi: optional KintsugiLayer. Its golden seams add learned
     recognition (provenance-tagged, below curated weight) and its
     hardening boosts raise confidence on previously-attacked vectors.
+    channel: "user_input" (default) or "tool_output" — the indirect
+    injection data gate only scans tool output / retrieved documents.
+    session_state: optional {"gnat_index": int, "tier": str} — lets the
+    slow-boil detector lower its bar for already-warm sessions.
     """
     history = history or []
     detections: list[Detection] = []
@@ -378,16 +684,25 @@ def scan(text: str, history: list[str] | None = None, kintsugi=None) -> ScanResu
     for one in ("l", "i"):
         for frag_first in (False, True):
             norm = normalize(text, one=one, frag_first=frag_first)
-            for d in _pattern_scan(norm) + _intent_scan(norm):
+            for d in _pattern_scan(norm, channel) + _intent_scan(norm):
                 key = (d.vector, d.evidence)
                 if key not in seen:
                     seen.add(key)
                     detections.append(d)
+    detections += _prompt_extraction_raw(text)
+    detections += _delimiter_scan(text)
+    detections += _manyshot_scan(text)
+    detections += _slowboil_scan(text, history, session_state)
     detections += _redundancy_scan(text, history)
     detections += _noise_scan(text)
 
     if kintsugi is not None:
         detections = _apply_kintsugi(detections, text, kintsugi)
+
+    # --- v1.2.0 Sundew ML brain sidecar (optional). Returns (detections,
+    # None) when no model file exists, in which case everything below is
+    # the stock v1.1.0 path, untouched. ---
+    detections, fused_score = _maybe_apply_brain(detections, text)
 
     if not detections:
         return ScanResult()
@@ -397,12 +712,45 @@ def scan(text: str, history: list[str] | None = None, kintsugi=None) -> ScanResu
     vectors = {d.vector for d in detections}
     top = max(d.score for d in detections)
     gnat_score = min(1.0, top + 0.12 * (len(vectors) - 1))
+    if fused_score is not None:
+        # fuse() already applied the heuristic formula + ML rule.
+        gnat_score = fused_score
 
     return ScanResult(
         detections=detections,
         gnat_score=round(gnat_score, 3),
         is_gnat=gnat_score >= GNAT_THRESHOLD,
     )
+
+
+def _maybe_apply_brain(
+    detections: list[Detection], text: str
+) -> tuple[list[Detection], float | None]:
+    """Run the optional Sundew ML brain fusion (v1.2.0 sidecar).
+
+    Returns (detections, fused_score). When the brain module is missing or
+    no trained model file exists, returns (detections, None) and the caller
+    falls back to the stock heuristic score — scan() behaves exactly like
+    v1.1.0. The import is lazy and the file-exists check is cached, so the
+    disabled path costs microseconds.
+    """
+    try:
+        from . import brain as _brain
+    except ImportError:
+        return detections, None
+    if not _brain.brain_available():
+        return detections, None
+    ml = _brain.brain_score(text, _brain.get_model())
+    if detections:
+        vectors = {d.vector for d in detections}
+        h_score = round(
+            min(1.0, max(d.score for d in detections) + 0.12 * (len(vectors) - 1)),
+            3,
+        )
+    else:
+        h_score = 0.0
+    fused_score, detections = _brain.fuse(h_score, detections, ml)
+    return detections, fused_score
 
 
 def _apply_kintsugi(

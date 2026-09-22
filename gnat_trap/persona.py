@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Persona Overlay Modulation — Trickster (yellow), Shadow (orange), Warden (red).
 
 The shield stops joking here. Each overlay is a posture, not a costume:

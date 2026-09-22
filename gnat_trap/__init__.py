@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """GNTRP-X3M — modular behavioral defense library.
 
 Plug-and-play: one import, zero dependencies, no framework::
@@ -63,9 +64,26 @@ class GnatTrap:
         one-shot: flagged inputs come back tier "green", action "flag".
         With a session_id, repeated attacks escalate green -> yellow ->
         orange -> red, and red locks the session (action "block").
+
+        Sessions keep a short rolling history (last 6 inputs) in the
+        session store; it feeds the slow-boil (Crescendo) detector along
+        with the session's current gnat index and tier.
         """
         # Detection math lives entirely in detector.scan — untouched here.
-        raw = _detector_scan(text)
+        sess_state = None
+        sess_hist: list[str] = []
+        sess_store = None
+        if self.tracker is not None and session_id is not None:
+            sess_store = self.tracker._state(session_id)
+            sess_hist = sess_store.get("inputs", [])
+            sess_state = {
+                "gnat_index": sess_store["index"],
+                "tier": self.tracker.tier_for_index(sess_store["index"]),
+            }
+        raw = _detector_scan(
+            text, history=sess_hist, session_state=sess_state)
+        if sess_store is not None:
+            sess_store["inputs"] = (sess_hist + [text])[-6:]
         cfg = self.config
         gates = cfg.vector_thresholds or {}
         vectors = tuple(
@@ -130,7 +148,7 @@ def scan(text: str, config: ScanConfig | None = None) -> ScanResult:
     return GnatTrap(config=cfg).scan(text)
 
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # v1.1.0 modular surface:

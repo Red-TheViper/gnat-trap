@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 """Logging Subsystem — JSON-lines audit trail + architect alerts.
 
 Every processed input is logged: timestamp, vectors, Gnat Score, index,
