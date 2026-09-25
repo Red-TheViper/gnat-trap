@@ -1,5 +1,5 @@
 # Gnat Trap
-### *by Xiphos Axiom*
+### *by Red Xiphos Axiom*
 *Powered by Drosera*
 
 **A hardened prompt-injection detection engine with an adversarial fuzzer.**

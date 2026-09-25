@@ -1,4 +1,4 @@
-# Changelog — Gnat Trap by Xiphos Axiom
+# Changelog — Gnat Trap by Red Xiphos Axiom
 
 All notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning follows SemVer.
