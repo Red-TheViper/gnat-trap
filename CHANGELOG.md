@@ -3,9 +3,15 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog; versioning follows SemVer.
 
+## [Unreleased]
+
+### Changed
+
+- Renamed the Sundew ML brain sidecar to **Drosera** (`gnat_trap/brain.py`, model bundle now `gnat_trap/drosera_model.pkl`). "Gnat Trap — Powered by Drosera."
+
 ## [1.2.0] — 2026-09-21
 
-The "upper hand" release: five new detector families, the Sundew ML brain,
+The "upper hand" release: five new detector families, the Drosera ML brain,
 and the first published eval numbers — including a head-to-head shootout
 against prompt-shield.
 
@@ -30,13 +36,13 @@ against prompt-shield.
     in code comments. Every rule requires instruction-shaped content nearby.
   - `many_shot` (0.70) — long-context stuffing: ≥5 exemplar pairs (Example N:,
     Q:/A:, User:/Assistant:) *with* override phrasing inside the exemplar zone.
-- **Sundew — the optional ML brain sidecar** (`gnat_trap/brain.py`).
+- **Drosera — the optional ML brain sidecar** (`gnat_trap/brain.py`).
   TF-IDF + LogisticRegression trained on deepset/prompt-injections
   (Apache-2.0, 662 rows). Advisory only: it can confirm a heuristic flag
   (+0.05 max) or raise a clean input at p ≥ 0.85 — it can never lower a
   heuristic flag. Lazy import, stdlib-only top level: with no model file
   (or no sklearn) `scan()` behaves exactly like v1.1.0. Ships with a
-  trained `brain_model.pkl` (382 KB); retrain with `eval/train_brain.py`
+  trained `drosera_model.pkl` (382 KB); retrain with `eval/train_brain.py`
   (`requirements-ml.txt` holds the extras).
 - **Eval harness** (`eval/run_eval.py`): precision / recall / F1 /
   false-positive rate + latency p50/p99 on any `{"text","label"}` JSONL
@@ -55,7 +61,7 @@ against prompt-shield.
   FPR 0.0050 vs prompt-shield (heuristic stack) P **0.9733** / R 0.2776 /
   FPR 0.0050. Both tools are high-precision / low-recall here;
   prompt-shield's signature alignment catches ~3× more at equal FPR.
-- Sundew holdout (deepset test split, n=116): P **0.978**, R **0.750**,
+- Drosera holdout (deepset test split, n=116): P **0.978**, R **0.750**,
   FPR **0.018**; inference ~0.9 ms/text, +2.9 ms `scan()` overhead.
 - Fuzz: **4,000/4,000** caught (seed 20260921); full suite green.
 
@@ -65,7 +71,7 @@ against prompt-shield.
   "what if…" probe may fire. The ≥2-hit bar mitigates, doesn't eliminate.
 - `prompt_extraction` flags curious-but-innocent questions ("what's in your
   context?") at 0.75 — a deliberate product call.
-- Sundew's holdout is only 116 rows; recall 0.75 is a signal, not a proof.
+- Drosera's holdout is only 116 rows; recall 0.75 is a signal, not a proof.
 - The shootout ran prompt-shield's heuristic stack only (its DeBERTa +
   vault needed more disk than the sandbox allowed); a full-ensemble rerun
   is one command: `python3 eval/shootout.py --data eval/data/dataset.jsonl`.

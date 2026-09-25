@@ -49,8 +49,8 @@ latency_ms = (time.perf_counter() - t0) * 1000.0
 pred = 1 if result.is_gnat else 0   # is_gnat := gnat_score >= 0.55
 ```
 
-Note: v1.2.0's `scan()` always runs the Sundew ML-brain fusion when
-`gnat_trap/brain_model.pkl` is present, so the measured latency includes
+Note: v1.2.0's `scan()` always runs the Drosera ML-brain fusion when
+`gnat_trap/drosera_model.pkl` is present, so the measured latency includes
 the heuristic stack + TF-IDF/LogisticRegression scoring + fusion. No
 session state is used (pure `detector.scan`, one shot per text).
 
@@ -152,7 +152,7 @@ fallback set.
 Latency: prompt-shield's per-text scan is ~3.6x faster at p50 here
 (37 ms vs 133 ms) with a much tighter tail (p99 138 ms vs 1310 ms).
 Gnat Trap's p99 tail comes from long inputs through the normalization ×4
-union plus the Sundew brain scoring. Neither is near real-time-budget
+union plus the Drosera brain scoring. Neither is near real-time-budget
 territory for chat, both are fine for a pre-LLM gate.
 
 ## Reproducing

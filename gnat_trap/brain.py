@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
-"""Sundew — the optional ML brain sidecar for Gnat Trap (v1.2.0).
+"""Drosera — the optional ML brain sidecar for Gnat Trap (v1.2.0).
 
 An ML stage that sits *underneath* the heuristic layer: it can confirm a
 heuristic flag or catch what the heuristics miss, but it can never
-overrule them. When no trained model file is present Sundew is fully
+overrule them. When no trained model file is present Drosera is fully
 inert and detector.scan() behaves exactly like v1.1.0.
 
 Top-level imports are stdlib ONLY. scikit-learn is imported lazily inside
@@ -24,7 +24,7 @@ from functools import lru_cache
 
 # ------------------------------------------------------------------ config
 DEFAULT_MODEL_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "brain_model.pkl"
+    os.path.dirname(os.path.abspath(__file__)), "drosera_model.pkl"
 )
 
 # Fusion thresholds (kept in sync with detector.GNAT_THRESHOLD = 0.55).
@@ -49,7 +49,7 @@ def brain_available(path: str | None = None) -> bool:
 def refresh() -> None:
     """Clear the cached file-exists check and model cache.
 
-    Call after dropping in (or removing) a brain_model.pkl so a long-lived
+    Call after dropping in (or removing) a drosera_model.pkl so a long-lived
     process picks up the change without a restart.
     """
     _file_exists.cache_clear()
@@ -129,9 +129,9 @@ def fuse(
     heuristic_detections: list,
     ml_score: float | None,
 ) -> tuple[float, list]:
-    """Fuse the heuristic verdict with the Sundew ML sidecar score.
+    """Fuse the heuristic verdict with the Drosera ML sidecar score.
 
-    Fusion rule (Sundew is advisory — heuristics rule):
+    Fusion rule (Drosera is advisory — heuristics rule):
 
     1. ml_score is None (no model / sklearn missing) -> return the
        heuristics untouched. v1.1.0 behavior, bit for bit.

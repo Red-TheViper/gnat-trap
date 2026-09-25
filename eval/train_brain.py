@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 #!/usr/bin/env python3
-"""Train Sundew, the Gnat Trap v1.2.0 ML BRAIN.
+"""Train Drosera, the Gnat Trap v1.2.0 ML BRAIN.
 
 Pipeline: TF-IDF (word 1-2 grams, max 20k features, sublinear TF) +
 LogisticRegression, trained on eval/data/dataset.jsonl
@@ -10,7 +10,7 @@ Uses the dataset's canonical splits: train on split == "train" (546 rows),
 holdout metrics on split == "test" (116 rows).
 
 Outputs:
-  gnat_trap/brain_model.pkl — pickle bundle:
+  gnat_trap/drosera_model.pkl — pickle bundle:
       {"vectorizer": TfidfVectorizer, "classifier": LogisticRegression,
        "meta": {...training metadata...}}
   Kept well under 10 MB.
@@ -34,7 +34,7 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(REPO, "eval", "data", "dataset.jsonl")
-OUT = os.path.join(REPO, "gnat_trap", "brain_model.pkl")
+OUT = os.path.join(REPO, "gnat_trap", "drosera_model.pkl")
 
 
 def load_data():

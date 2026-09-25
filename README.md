@@ -1,6 +1,6 @@
 # Gnat Trap
 ### *by Xiphos Axiom*
-*Powered by Sundew*
+*Powered by Drosera*
 
 **A hardened prompt-injection detection engine with an adversarial fuzzer.**
 Catches obfuscated jailbreaks other filters miss — leet-speak, homoglyphs,
@@ -87,7 +87,7 @@ gnat_trap/
                   indirect_injection (data gate), slow_boil (multi-turn),
                   prompt_extraction, delimiter_smuggling, many_shot,
                   plus the intent_probe sub-vector (verb + sensitive-noun)
-                  and the optional ml_signal (Sundew)
+                  and the optional ml_signal (Drosera)
   escalation.py   Escalation Protocol — the Gnat Index + tier ladder
                   (green 1-6 / yellow 7-8 / orange 9-10 / red 11;
                   red_at=13 gives the Whisper Loop 13-strike flavor)
@@ -106,8 +106,8 @@ gnat_trap/
   fuzz.py         Obfuscation fuzzer — 10 randomized transforms
                   (leet, fragmentation, homoglyph, fullwidth, zero-width,
                   spaced letters, case scramble, typos, wrappers, synonyms)
-  brain.py        Sundew — the optional ML brain sidecar (below)
-  brain_model.pkl Trained Sundew bundle (TF-IDF + LogisticRegression, 382 KB)
+  brain.py        Drosera — the optional ML brain sidecar (below)
+  drosera_model.pkl Trained Drosera bundle (TF-IDF + LogisticRegression, 382 KB)
 ```
 
 ## Normalization: the obfuscation grinder
@@ -181,9 +181,9 @@ on benign input doesn't ship):
   (Example N:, Q:/A:, User:/Assistant:) *with* override phrasing inside the
   exemplar zone. Legit few-shot prompts with clean content stay clear.
 
-## Sundew — the optional ML brain
+## Drosera — the optional ML brain
 
-Sundew (`gnat_trap/brain.py`) is a small local classifier — TF-IDF word
+Drosera (`gnat_trap/brain.py`) is a small local classifier — TF-IDF word
 1–2 grams + LogisticRegression — trained on the public
 [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections)
 set (Apache-2.0, 662 rows). It sits *underneath* the heuristics as an
@@ -191,9 +191,9 @@ advisor:
 
 1. No model file (or no sklearn) → heuristics untouched. v1.1.0 behavior,
    bit for bit. The core package stays 100% stdlib.
-2. Heuristics already flag → Sundew can only *confirm* (+0.05 max) and
+2. Heuristics already flag → Drosera can only *confirm* (+0.05 max) and
    appends an `ml_signal` provenance detection. It never lowers a flag.
-3. Heuristics clean but P(malicious) ≥ 0.85 → Sundew raises the input
+3. Heuristics clean but P(malicious) ≥ 0.85 → Drosera raises the input
    alone (`ml_signal`, 0.80).
 4. Anything weaker → the clean verdict stands.
 
@@ -212,13 +212,13 @@ tables in `eval/SHOOTOUT.md`):
 | In-threat-model (attack corpus + 40 benign, 127 rows) | 0.955 | 0.928 | 0.052 |
 | deepset/prompt-injections (662 rows, broad multilingual jailbreak) | 0.920 | 0.088 | 0.005 |
 | prompt-shield heuristic stack, same 662 rows | 0.973 | 0.278 | 0.005 |
-| Sundew holdout (deepset test split, n=116) | 0.978 | 0.750 | 0.018 |
+| Drosera holdout (deepset test split, n=116) | 0.978 | 0.750 | 0.018 |
 
 Honest read: on the broad multilingual set both tools are high-precision /
 low-recall — it's outside either tool's threat model — and prompt-shield's
 signature alignment catches ~3× more at equal FPR (its DeBERTa + vault were
 not in that run; a full-ensemble rerun is one command). On Gnat Trap's home
-turf — obfuscated prompt injection — it's 0.955/0.928. Sundew's holdout is
+turf — obfuscated prompt injection — it's 0.955/0.928. Drosera's holdout is
 only 116 rows: a signal, not a proof. Fuzz standing: **4,000/4,000** caught
 (seed 20260921).
 
@@ -226,7 +226,7 @@ only 116 rows: a signal, not a proof. Fuzz standing: **4,000/4,000** caught
 
 1. **Scan** each input across 14 vector classes. Strongest vector sets the
    base score; each additional distinct vector adds +0.12 (capped at 1.0).
-   Score ≥ 0.55 → it's a gnat. With Sundew present, a strong ML signal can
+   Score ≥ 0.55 → it's a gnat. With Drosera present, a strong ML signal can
    confirm a flag or raise an otherwise-clean input (see above) — never
    lower one.
 2. **Clean inputs pass through untouched** (response `None`). The engine is
@@ -254,7 +254,7 @@ attacks score measurably higher on hardened vectors.
 ## Honest limits
 
 - Detectors are heuristic (regex + similarity + flood stats), not ML — with
-  one exception: the optional Sundew sidecar, whose holdout recall is 0.75
+  one exception: the optional Drosera sidecar, whose holdout recall is 0.75
   on 116 rows (a signal, not a proof). Novel phrasings can still slip; the
   Kintsugi loop is the mechanism for closing those gaps deterministically.
 - `slow_boil` is the riskiest new family: a session legitimately discussing

@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 #!/usr/bin/env python3
-"""Fetch the Sundew (ML BRAIN) training dataset for Gnat Trap v1.2.0.
+"""Fetch the Drosera (ML BRAIN) training dataset for Gnat Trap v1.2.0.
 
 Dataset: deepset/prompt-injections
   Source:  https://huggingface.co/datasets/deepset/prompt-injections

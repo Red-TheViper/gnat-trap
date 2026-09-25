@@ -699,7 +699,7 @@ def scan(text: str, history: list[str] | None = None, kintsugi=None,
     if kintsugi is not None:
         detections = _apply_kintsugi(detections, text, kintsugi)
 
-    # --- v1.2.0 Sundew ML brain sidecar (optional). Returns (detections,
+    # --- v1.2.0 Drosera ML brain sidecar (optional). Returns (detections,
     # None) when no model file exists, in which case everything below is
     # the stock v1.1.0 path, untouched. ---
     detections, fused_score = _maybe_apply_brain(detections, text)
@@ -726,7 +726,7 @@ def scan(text: str, history: list[str] | None = None, kintsugi=None,
 def _maybe_apply_brain(
     detections: list[Detection], text: str
 ) -> tuple[list[Detection], float | None]:
-    """Run the optional Sundew ML brain fusion (v1.2.0 sidecar).
+    """Run the optional Drosera ML brain fusion (v1.2.0 sidecar).
 
     Returns (detections, fused_score). When the brain module is missing or
     no trained model file exists, returns (detections, None) and the caller

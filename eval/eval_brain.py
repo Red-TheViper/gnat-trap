@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Fred McFadden — SPDX-License-Identifier: AGPL-3.0-or-later
 #!/usr/bin/env python3
-"""Latency + overhead eval for Sundew, the Gnat Trap v1.2.0 ML BRAIN.
+"""Latency + overhead eval for Drosera, the Gnat Trap v1.2.0 ML BRAIN.
 
 Measures:
   1. brain_score() mean latency per text on CPU (n=1000).
@@ -24,7 +24,7 @@ import time
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-MODEL = os.path.join(REPO, "gnat_trap", "brain_model.pkl")
+MODEL = os.path.join(REPO, "gnat_trap", "drosera_model.pkl")
 STASH = MODEL + ".stash"
 
 SAMPLES = [
